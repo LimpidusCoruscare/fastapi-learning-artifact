@@ -115,6 +115,25 @@ button { font: inherit; color: inherit; letter-spacing: inherit; }
 .meter-bar { height: 6px; border-radius: var(--shape-full); background: var(--md-secondary-container); overflow: hidden; }
 .meter-bar i { display: block; height: 100%; width: 0; background: var(--md-primary); border-radius: inherit; transition: width .3s; }
 .sync { font-size: 11px; line-height: 16px; letter-spacing: .5px; color: var(--md-on-surface-variant); }
+.sync-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sync[data-s="error"] { color: var(--md-error); }
+.sync-open { font: 500 11px/16px var(--font-body); letter-spacing: .5px; color: var(--md-primary); background: none; border: 0; padding: 4px 0; cursor: pointer; flex: none; }
+.sync-open:hover { text-decoration: underline; }
+.compact .sync-row { display: none; }
+dialog.sync-dlg { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; border: 0; border-radius: var(--shape-xl); padding: 24px; background: var(--md-surface-c-high); color: var(--md-on-surface); }
+dialog.sync-dlg::backdrop { background: color-mix(in srgb, var(--md-scrim) 40%, transparent); }
+.sync-dlg h2 { margin: 0 0 8px; font-size: 24px; line-height: 32px; font-weight: 400; }
+.sync-dlg h3 { margin: 20px 0 8px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: .1px; }
+.sync-dlg p, .sync-dlg li { font-size: 14px; line-height: 20px; color: var(--md-on-surface-variant); margin: 0 0 8px; }
+.sync-dlg ol { margin: 0 0 8px; padding-left: 20px; }
+.sync-dlg a { color: var(--md-primary); }
+.sync-dlg label { display: block; font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: .5px; margin: 12px 0 4px; color: var(--md-on-surface-variant); }
+.sync-dlg input[type="password"], .sync-dlg input[type="text"] { width: 100%; height: 40px; padding: 0 12px; font: 13px var(--font-mono); letter-spacing: 0; color: var(--md-on-surface); background: var(--md-surface-c-lowest); border: 1px solid var(--md-outline); border-radius: var(--shape-xs); }
+.sync-dlg input:focus { outline: none; border: 2px solid var(--md-primary); padding: 0 11px; }
+.sync-dlg .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.sync-dlg .msg { min-height: 20px; margin-top: 12px; font-size: 13px; line-height: 20px; color: var(--md-on-surface-variant); }
+.sync-dlg .msg[data-s="error"] { color: var(--md-error); }
+.sync-dlg .foot { display: flex; justify-content: flex-end; margin-top: 16px; }
 .mini-num { display: none; }
 #nav { display: grid; gap: 4px; }
 .track h3 { margin: 0; padding: 18px 16px 8px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: .1px; color: var(--md-on-surface-variant);
@@ -424,11 +443,43 @@ details.custom summary { padding: 0 16px; min-height: 48px; display: flex; align
       <div class="mini-num" id="mini-num">0/0</div>
       <div class="meter-row"><span>퀴즈 정답</span><span id="quiz-num">0 / 0</span></div>
       <div class="meter-row"><span>연습문제 통과</span><span id="ex-num">0 / 0</span></div>
-      <div class="sync" id="sync">진도는 이 브라우저에 저장됩니다</div>
+      <div class="sync-row"><div class="sync" id="sync">진도는 이 브라우저에 저장됩니다</div><button class="sync-open" id="sync-open" type="button">동기화</button></div>
     </div>
     <div id="nav"></div>
   </nav>
   <div class="scrim" id="scrim"></div>
+  <dialog class="sync-dlg" id="sync-dlg" aria-labelledby="sync-title">
+    <h2 id="sync-title">진도 동기화</h2>
+    <p>진도 · 퀴즈 · 연습문제 초안을 내 GitHub 계정의 <b>비공개 Gist</b>에 저장해 다른 기기에서도 이어서 볼 수 있습니다.</p>
+    <div id="sync-off">
+      <ol>
+        <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Fine-grained 토큰</a>을 만들고 <b>Account permissions → Gists: Read and write</b>만 켭니다. (클래식 토큰이면 <code>gist</code> 범위만)</li>
+        <li>아래에 붙여 넣고 연결합니다. 다른 기기에서도 같은 토큰을 넣으면 기존 Gist를 찾아 이어 받습니다.</li>
+      </ol>
+      <label for="sync-token">GitHub 토큰</label>
+      <input type="password" id="sync-token" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+      <label for="sync-gist">Gist ID (비워 두면 자동으로 찾거나 새로 만듦)</label>
+      <input type="text" id="sync-gist" autocomplete="off" spellcheck="false">
+      <p style="margin-top:8px">토큰은 이 브라우저(localStorage)에만 저장되고 api.github.com으로만 전송됩니다. 공용 기기에서는 쓰지 마세요.</p>
+      <div class="row"><button class="btn primary" id="sync-connect" type="button">연결</button></div>
+    </div>
+    <div id="sync-on" hidden>
+      <p id="sync-info"></p>
+      <div class="row">
+        <button class="btn primary" id="sync-now" type="button">지금 동기화</button>
+        <button class="btn text" id="sync-disconnect" type="button">연결 해제</button>
+      </div>
+    </div>
+    <h3>파일로 옮기기</h3>
+    <p>토큰 없이 JSON 파일로 내보내고 다른 브라우저에서 가져올 수 있습니다. 가져오면 지금 진도와 합쳐집니다.</p>
+    <div class="row">
+      <button class="btn tonal" id="sync-export" type="button">내보내기</button>
+      <button class="btn tonal" id="sync-import" type="button">가져오기</button>
+      <input type="file" id="sync-file" accept="application/json,.json" hidden>
+    </div>
+    <div class="msg" id="sync-msg" role="status"></div>
+    <div class="foot"><button class="btn text" id="sync-close" type="button">닫기</button></div>
+  </dialog>
 
   <main>
     <div class="topbar">
@@ -477,6 +528,7 @@ const store = {
   saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(progress)); } catch (e) {} },
   save() {
     this.saveLocal();
+    if (window.gistSync) gistSync.mark();
     if (!this.ref) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => { this.ref.set({ json: JSON.stringify(progress), updatedAt: Date.now() }).catch(() => {}); }, 700);
@@ -1158,6 +1210,7 @@ let draftTimer = null;
 function saveDrafts() {
   clearTimeout(draftTimer);
   draftTimer = setTimeout(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts)); } catch (e) {} }, 500);
+  if (window.gistSync) gistSync.mark();
 }
 function exOf(ex) {
   if (!exState[ex.id]) exState[ex.id] = { code: drafts[ex.id] ?? ex.starter, hints: 0, attempts: 0, result: null, showSol: false, busy: false };
@@ -1334,6 +1387,197 @@ $("#nav").addEventListener("click", (e) => { const b = e.target.closest("[data-g
 $("#rt-btn").onclick = async () => { await startRuntime(); const ch = CH[chIndex(currentId())]; refreshBench(ch); refreshAllEx(ch); prepChapter(ch); };
 window.addEventListener("hashchange", render);
 render();
-/* standalone: 진도는 이 브라우저에만 저장 */
+/* ── Gist 동기화 + 파일 내보내기/가져오기 ── */
+const gistSync = (() => {
+  const CFG_KEY = "fastapi-lab-gist-v1";
+  const FILE = "fastapi-lab-state.json";
+  const API = "https://api.github.com";
+  let cfg = {};
+  try { cfg = JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { cfg = {}; }
+  // cfg: { token, gistId, login, syncedAt, dirty }
+  let timer = null, busy = null;
+  const saveCfg = () => { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) {} };
+  const on = () => !!(cfg.token && cfg.gistId);
+
+  function status(text, s = "") { const el = $("#sync"); el.textContent = text; el.dataset.s = s; }
+  function msg(text, s = "") { const el = $("#sync-msg"); el.textContent = text; el.dataset.s = s; }
+  function idle() {
+    if (!on()) return status("진도는 이 브라우저에 저장됩니다");
+    status(cfg.syncedAt ? `Gist에 동기화됨 · ${new Date(cfg.syncedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}` : "Gist 동기화 켜짐");
+  }
+
+  // 비교용: 화면 위치(last)만 바뀐 건 올리지 않는다
+  const content = (st) => JSON.stringify({ done: st.progress.done || {}, quiz: st.progress.quiz || {}, ex: st.progress.ex || {}, drafts: st.drafts || {} });
+  const snapshot = () => ({ app: "fastapi-lab", v: 1, updatedAt: Date.now(), progress: JSON.parse(JSON.stringify(progress)), drafts: { ...drafts } });
+
+  function merge(a, b) { // a 우선
+    return {
+      progress: {
+        done: { ...(b.progress.done || {}), ...(a.progress.done || {}) },
+        quiz: { ...(b.progress.quiz || {}), ...(a.progress.quiz || {}) },
+        ex: { ...(b.progress.ex || {}), ...(a.progress.ex || {}) },
+        last: a.progress.last || b.progress.last || null,
+      },
+      drafts: { ...(b.drafts || {}), ...(a.drafts || {}) },
+    };
+  }
+  function valid(st) { return st && typeof st === "object" && st.progress && typeof st.progress === "object"; }
+
+  function apply(st) {
+    progress.done = st.progress.done || {}; progress.quiz = st.progress.quiz || {}; progress.ex = st.progress.ex || {};
+    if (st.progress.last) progress.last = st.progress.last;
+    drafts = st.drafts || {};
+    try { localStorage.setItem(LS_KEY, JSON.stringify(progress)); localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts)); } catch (e) {}
+    for (const id in exState) { const st2 = exState[id]; if (!st2.busy && drafts[id] != null) st2.code = drafts[id]; }
+    render();
+  }
+
+  async function gh(path, opts = {}) {
+    const r = await fetch(API + path, { cache: "no-store", ...opts, headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${cfg.token}`, "X-GitHub-Api-Version": "2022-11-28", ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+    if (r.status === 401) throw new Error("토큰이 올바르지 않거나 만료되었습니다");
+    if (r.status === 403 || r.status === 404) throw new Error(path.startsWith("/gists") ? "Gist에 접근할 수 없습니다 (토큰에 Gists 쓰기 권한이 있는지 확인)" : `GitHub 응답 ${r.status}`);
+    if (!r.ok) throw new Error(`GitHub 응답 ${r.status}`);
+    return r.status === 204 ? null : r.json();
+  }
+  async function readGist(id) {
+    const g = await gh(`/gists/${id}`);
+    const f = g.files && g.files[FILE];
+    if (!f) return null;
+    let text = f.content;
+    if (f.truncated && f.raw_url) text = await (await fetch(f.raw_url)).text();
+    try { const st = JSON.parse(text); return valid(st) ? st : null; } catch (e) { return null; }
+  }
+  async function writeGist(st, keepalive = false) {
+    await gh(`/gists/${cfg.gistId}`, { method: "PATCH", keepalive, body: JSON.stringify({ files: { [FILE]: { content: JSON.stringify(st, null, 1) } } }) });
+    cfg.lastContent = content(st); cfg.syncedAt = Date.now();
+    cfg.dirty = content(snapshot()) !== cfg.lastContent; // 올리는 사이에 바뀐 게 있으면 계속 dirty
+    saveCfg();
+  }
+
+  // 원격을 받아 합치고, 달라졌으면 올린다
+  async function sync() {
+    if (!on()) return;
+    if (busy) return busy;
+    let ok = false;
+    busy = (async () => {
+      clearTimeout(timer); timer = null;
+      status("Gist와 동기화 중…");
+      try {
+        const remote = await readGist(cfg.gistId);
+        const local = snapshot();
+        let next = local;
+        if (remote) {
+          // 이 기기에 올리지 않은 변경이 없으면 원격을 그대로 따른다(다른 기기에서 지운 것도 반영)
+          // 마지막 동기화 이후 원격만 바뀜 → 원격을 따름 / 이 기기만 바뀜 → 그대로 / 둘 다 바뀜 → 합침
+          const remoteChanged = content(remote) !== cfg.lastContent;
+          if (!cfg.dirty) next = { progress: { ...remote.progress, last: local.progress.last || remote.progress.last }, drafts: remote.drafts || {} };
+          else if (remoteChanged) next = merge(local, remote);
+          if (content(next) !== content(local)) apply(next);
+        }
+        const out = { ...snapshot() };
+        if (!remote || content(out) !== content(remote)) await writeGist(out);
+        else { cfg.lastContent = content(out); cfg.syncedAt = Date.now(); cfg.dirty = false; saveCfg(); }
+        idle();
+        ok = true;
+      } catch (e) { status("동기화 실패: " + e.message, "error"); throw e; }
+      finally { busy = null; if (ok && content(snapshot()) !== cfg.lastContent) mark(); }
+    })();
+    return busy;
+  }
+
+  function mark() {
+    if (!on()) return;
+    const c = content(snapshot());
+    if (c === cfg.lastContent) return;
+    if (!cfg.dirty) { cfg.dirty = true; saveCfg(); }
+    if (busy) return; // 진행 중인 동기화가 끝나면 dirty를 보고 다시 예약한다
+    clearTimeout(timer);
+    timer = setTimeout(() => { timer = null; sync().catch(() => {}); }, 3000);
+    status("변경 사항 저장 대기 중…");
+  }
+
+  async function connect(token, gistId) {
+    cfg = { token, gistId: gistId || "", dirty: true };
+    const me = await gh("/user").catch(() => null); // fine-grained 토큰은 권한에 따라 실패할 수 있음
+    cfg.login = me && me.login;
+    if (!cfg.gistId) {
+      for (let page = 1; page <= 10 && !cfg.gistId; page++) {
+        const list = await gh(`/gists?per_page=100&page=${page}`);
+        const hit = list.find((g) => g.files && g.files[FILE]);
+        if (hit) cfg.gistId = hit.id;
+        if (list.length < 100) break;
+      }
+    }
+    if (!cfg.gistId) {
+      const g = await gh("/gists", { method: "POST", body: JSON.stringify({ public: false, description: "FastAPI 실습실 진도 (자동 동기화)", files: { [FILE]: { content: JSON.stringify(snapshot(), null, 1) } } }) });
+      cfg.gistId = g.id; cfg.lastContent = content(snapshot()); cfg.syncedAt = Date.now(); cfg.dirty = false;
+      saveCfg(); return "새 비공개 Gist를 만들었습니다";
+    }
+    saveCfg();
+    await sync();
+    return "기존 Gist와 합쳤습니다";
+  }
+
+  function refreshDlg() {
+    $("#sync-off").hidden = on(); $("#sync-on").hidden = !on();
+    if (on()) {
+      const info = $("#sync-info");
+      info.innerHTML = `${cfg.login ? `<b>${esc(cfg.login)}</b> 계정의 ` : ""}<a href="https://gist.github.com/${esc(cfg.gistId)}" target="_blank" rel="noopener">비공개 Gist</a>에 자동 저장 중입니다.`
+        + (cfg.syncedAt ? ` 마지막 동기화: ${esc(new Date(cfg.syncedAt).toLocaleString("ko-KR"))}` : "");
+    }
+  }
+
+  function exportFile() {
+    const blob = new Blob([JSON.stringify(snapshot(), null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `fastapi-lab-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    msg("파일을 내려받았습니다");
+  }
+  async function importFile(file) {
+    let st;
+    try { st = JSON.parse(await file.text()); } catch (e) { return msg("JSON 파일을 읽지 못했습니다", "error"); }
+    if (!valid(st)) return msg("이 실습실에서 내보낸 파일이 아닙니다", "error");
+    apply(merge(snapshot(), st));
+    store.saveLocal(); mark();
+    msg("가져온 진도를 합쳤습니다");
+  }
+
+  function init() {
+    const dlg = $("#sync-dlg");
+    $("#sync-open").onclick = () => { msg(""); refreshDlg(); dlg.showModal(); };
+    $("#sync-close").onclick = () => dlg.close();
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+    $("#sync-connect").onclick = async (e) => {
+      const token = $("#sync-token").value.trim(), gid = $("#sync-gist").value.trim().replace(/^.*\//, "");
+      if (!token) return msg("토큰을 입력하세요", "error");
+      e.target.disabled = true; msg("연결 중…");
+      try { const m = await connect(token, gid); $("#sync-token").value = ""; msg(m); refreshDlg(); idle(); }
+      catch (err) { cfg = {}; saveCfg(); msg(err.message, "error"); idle(); }
+      finally { e.target.disabled = false; }
+    };
+    $("#sync-now").onclick = async (e) => {
+      e.target.disabled = true; msg("동기화 중…");
+      try { await sync(); msg("동기화했습니다"); refreshDlg(); } catch (err) { msg(err.message, "error"); }
+      finally { e.target.disabled = false; }
+    };
+    $("#sync-disconnect").onclick = () => { clearTimeout(timer); cfg = {}; saveCfg(); refreshDlg(); idle(); msg("연결을 해제했습니다. Gist와 이 브라우저의 진도는 그대로 남습니다"); };
+    $("#sync-export").onclick = exportFile;
+    $("#sync-import").onclick = () => $("#sync-file").click();
+    $("#sync-file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importFile(f); };
+    // 다른 기기에서 바뀐 것을 돌아왔을 때 받아 온다
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && on() && !timer) sync().catch(() => {}); });
+    window.addEventListener("pagehide", () => { if (on() && cfg.dirty) writeGist(snapshot(), true).catch(() => {}); });
+    idle();
+    if (on()) sync().catch(() => {});
+  }
+  return { init, mark, sync };
+})();
+window.gistSync = gistSync;
+gistSync.init();
+
+/* standalone: 진도는 이 브라우저에 저장, 선택적으로 Gist 동기화 */
 })();
 </script>
