@@ -1,0 +1,866 @@
+"""Shared lesson runner: used locally to record responses and in the browser (Pyodide)."""
+import asyncio
+import contextlib
+import io
+import json
+import traceback
+
+import sys
+
+import httpx
+
+# 브라우저(Pyodide)에는 스레드가 없다. FastAPI/Starlette가 def 함수를 스레드풀로
+# 보내는 대신 같은 스레드에서 바로 실행하도록 바꾼다. (실제 서버와 이 점만 다르다)
+# 로컬 기록(CPython)에도 똑같이 적용해서 결과와 실행 추적이 브라우저와 같게 한다.
+import anyio.to_thread  # noqa: E402
+
+
+async def _run_sync_inline(func, *args, abandon_on_cancel=False, cancellable=None, limiter=None):
+    return func(*args)
+
+
+anyio.to_thread.run_sync = _run_sync_inline
+
+SHOW_HEADERS = ("content-type", "location", "www-authenticate", "set-cookie",
+                "access-control-allow-origin", "x-process-time", "x-request-id",
+                "cache-control", "allow")
+
+
+def _tb(exc):
+    lines = traceback.format_exception(exc)
+    # keep the part that points into the learner's code
+    keep = [l for l in lines if 'File "main.py"' in l or not l.startswith("  File")]
+    return "".join(keep[-8:])
+
+
+def _build_kwargs(r):
+    kw = {}
+    headers = dict(r.get("headers") or {})
+    if "json" in r:
+        kw["json"] = r["json"]
+    if "content" in r:
+        kw["content"] = r["content"]
+    if "form" in r:
+        kw["data"] = r["form"]
+    if "files" in r:
+        kw["files"] = {k: (v["name"], v["content"].encode(), v.get("type", "text/plain"))
+                       for k, v in r["files"].items()}
+    if "cookies" in r:
+        headers["cookie"] = "; ".join(f"{k}={v}" for k, v in r["cookies"].items())
+    kw["headers"] = headers
+    return kw
+
+
+def _reset_sql():
+    """SQLModel은 메타데이터와 클래스 레지스트리가 프로세스 전역이다.
+    같은 코드를 다시 실행하면 'Table already defined'가 나므로 실행 전에 비운다."""
+    m = sys.modules.get("sqlmodel")
+    if m is None:
+        return
+    try:
+        from sqlmodel.main import default_registry
+        default_registry.dispose()
+        default_registry._class_registry.clear()
+    except Exception:  # noqa: BLE001
+        pass
+    m.SQLModel.metadata.clear()
+
+
+_last = {"ns": None}
+
+
+async def _exec(code, mode):
+    _reset_sql()
+    ns = {"__name__": "main"}
+    _last["ns"] = ns
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            exec(compile(code, "main.py", "exec"), ns)
+            if mode == "script" and "main" in ns:
+                res = ns["main"]()
+                if asyncio.iscoroutine(res):
+                    await res
+    except Exception as exc:  # noqa: BLE001
+        return None, {"ok": False, "error": _tb(exc), "stdout": out.getvalue()}
+    if mode == "script":
+        return None, {"ok": True, "stdout": out.getvalue()}
+    app = ns.get("app")
+    if app is None:
+        return None, {"ok": False, "error": "main.py에 app 객체가 없습니다. app = FastAPI() 를 정의하세요.",
+                      "stdout": out.getvalue()}
+    return app, {"ok": True, "stdout": out.getvalue()}
+
+
+# ── 실행 추적: 요청 하나를 처리하는 동안 main.py에서 실행된 줄·값·예외를 기록한다 ──
+_IGNORED_EXC = ("StopIteration", "StopAsyncIteration", "GeneratorExit", "CancelledError")
+
+
+_ADDR = None
+
+
+def _short(v, limit=70):
+    global _ADDR
+    if _ADDR is None:
+        import re
+        _ADDR = re.compile(r" at 0x[0-9a-fA-F]+")
+    try:
+        fields = getattr(type(v), "model_fields", None)
+        if isinstance(fields, dict) and not isinstance(v, type):
+            # Pydantic/SQLModel: DB에서 다시 읽으면 속성 순서가 바뀌므로 선언 순서로 고정
+            r = f"{type(v).__name__}(" + ", ".join(f"{k}={getattr(v, k, None)!r}" for k in fields) + ")"
+        else:
+            r = _ADDR.sub("", repr(v))   # <main.FakeSession object at 0x7f..> → 실행마다 달라지는 주소 제거
+    except Exception:  # noqa: BLE001
+        r = f"<{type(v).__name__}>"
+    return r if len(r) <= limit else r[:limit - 1] + "…"
+
+
+def _is_value(v):
+    import inspect
+    return not (inspect.ismodule(v) or inspect.isclass(v) or inspect.isroutine(v))
+
+
+class _Tracer:
+    def __init__(self, cap=6000):
+        self.ev, self.cap, self.frames = [], cap, {}
+
+    def _fid(self, frame):
+        if frame not in self.frames:
+            self.frames[frame] = len(self.frames)
+            return self.frames[frame], False
+        return self.frames[frame], True
+
+    def _loc(self, frame):
+        return {k: _short(v) for k, v in frame.f_locals.items()
+                if not k.startswith("__") and _is_value(v)}
+
+    def __call__(self, frame, event, arg):
+        if frame.f_code.co_filename != "main.py" or len(self.ev) >= self.cap:
+            return None
+        fid, resumed = self._fid(frame)
+        co = frame.f_code
+        self.ev.append({"e": "resume" if resumed else "call", "fn": co.co_name, "first": co.co_firstlineno,
+                        "f": fid, "ln": frame.f_lineno, "loc": self._loc(frame)})
+        return self._local
+
+    def _local(self, frame, event, arg):
+        if len(self.ev) >= self.cap:
+            return None
+        fid = self.frames.get(frame, -1)
+        if event == "line":
+            self.ev.append({"e": "line", "fn": frame.f_code.co_name, "f": fid, "ln": frame.f_lineno,
+                            "loc": self._loc(frame)})
+        elif event == "exception":
+            name = arg[0].__name__
+            if name not in _IGNORED_EXC:
+                self.ev.append({"e": "exc", "fn": frame.f_code.co_name, "f": fid, "ln": frame.f_lineno,
+                                "type": name, "msg": _ADDR.sub("", str(arg[1]))[:90] if _ADDR else str(arg[1])[:90]})
+        elif event == "return":
+            self.ev.append({"e": "ret", "fn": frame.f_code.co_name, "f": fid, "ln": frame.f_lineno,
+                            "val": _short(arg)})
+        return self._local
+
+    def finish(self):
+        # await/yield에서 멈출 때도 return 이벤트가 생긴다. 같은 프레임이 나중에 재개되면 진짜 반환이 아니다.
+        later_resume = set()
+        for e in reversed(self.ev):
+            if e["e"] == "resume":
+                later_resume.add(e["f"])
+            elif e["e"] == "ret":
+                e["suspend"] = e["f"] in later_resume
+            if e["e"] == "call":
+                later_resume.discard(e["f"])
+        # 예외가 프레임 밖으로 전파됐는지: exc 바로 다음이 같은 프레임의 ret
+        last = {}
+        for i, e in enumerate(self.ev):
+            if e["e"] == "ret" and last.get(e["f"], {}).get("e") == "exc":
+                e["raised"] = last[e["f"]]["type"]
+            last[e["f"]] = e
+        return self.ev
+
+
+def _def_line(lines, first, name):
+    """데코레이터가 있으면 co_firstlineno가 데코레이터 줄을 가리킨다. 실제 def 줄을 찾는다."""
+    for n in range(first, min(first + 15, len(lines)) + 1):
+        if f"def {name}" in lines[n - 1]:
+            return n
+    return first
+
+
+def _code_key(fn):
+    fn = getattr(fn, "__wrapped__", fn)
+    co = getattr(fn, "__code__", None) or getattr(getattr(fn, "__call__", None), "__code__", None)
+    if co is None or co.co_filename != "main.py":
+        return None
+    return (co.co_name, co.co_firstlineno)
+
+
+def _app_meta(app):
+    """경로 함수, 의존성, yield 의존성, 사용자 미들웨어를 코드 키로 모은다."""
+    import inspect
+    endpoints, deps, gens = set(), set(), set()
+
+    def walk(dep):
+        for d in dep.dependencies:
+            k = _code_key(d.call) if d.call else None
+            if k:
+                deps.add(k)
+                if inspect.isgeneratorfunction(d.call) or inspect.isasyncgenfunction(d.call):
+                    gens.add(k)
+            walk(d)
+
+    mws = set()
+    for r in _flat_routes(app):
+        if hasattr(r, "dependant"):
+            k = _code_key(r.endpoint)
+            if k:
+                endpoints.add(k)
+            walk(r.dependant)
+        sub = getattr(r, "app", None)
+        if sub is not None and hasattr(sub, "user_middleware") and not hasattr(r, "endpoint"):
+            m = _app_meta(sub)   # app.mount()으로 붙인 서브 앱
+            endpoints |= m["endpoints"]; deps |= m["deps"]; gens |= m["gens"]; mws |= m["mws"]  # noqa: E702
+    for m in getattr(app, "user_middleware", []):
+        k = _code_key((getattr(m, "kwargs", None) or {}).get("dispatch")) if getattr(m, "kwargs", None) else None
+        if k:
+            mws.add(k)
+    return {"endpoints": endpoints, "deps": deps, "gens": gens, "mws": mws,
+            "has_mw": bool(getattr(app, "user_middleware", []))}
+
+
+def _flat_routes(app):
+    """include_router로 붙인 경로(_IncludedRouter)를 펼쳐 실제 경로 목록으로 만든다."""
+    out = []
+    for r in getattr(app, "routes", []):
+        cands = getattr(r, "effective_candidates", None)
+        if callable(cands):
+            cands = cands()
+        out.extend(list(cands) if cands is not None else [r])
+    return out
+
+
+def _match(app, method, path, root_path=""):
+    """요청이 어느 경로에 맞는지 확인한다. (route, 'full'|'partial'|None)"""
+    from starlette.routing import Match
+    path = path.split("?")[0]
+    if root_path and path.startswith(root_path):
+        path = path[len(root_path):] or "/"
+    partial = None
+    for r in _flat_routes(app):
+        regex = getattr(r, "path_regex", None)
+        if regex is None or not hasattr(r, "methods"):
+            try:   # Mount 등
+                m, _ = r.matches({"type": "http", "path": path, "method": method, "root_path": "", "headers": []})
+            except Exception:  # noqa: BLE001
+                continue
+            if m == Match.FULL:
+                return None, "full"
+            continue
+        if regex.match(path):
+            methods = r.methods or set()
+            if not methods or method in methods or (method == "HEAD" and "GET" in methods):
+                return r, "full"
+            partial = partial or r
+    return (partial, "partial") if partial else (None, None)
+
+
+def _stages(ev, meta, status, route, how):
+    """생애주기 띠의 각 단계 상태: pass(통과) stop(여기서 오류로 끝) end(여기서 정상 응답) skip(안 감) none(해당 없음)."""
+    key = lambda e: (e["fn"], e.get("first"))  # noqa: E731
+    calls = [e for e in ev if e["e"] == "call"]
+    first = {e["f"]: (e["fn"], e["first"]) for e in calls}
+    cat = lambda f: ("fn" if first.get(f) in meta["endpoints"] else "dep" if first.get(f) in meta["deps"]  # noqa: E731
+                     else "mw" if first.get(f) in meta["mws"] else None)
+    ep_called = any(key(e) in meta["endpoints"] for e in calls)
+    raised = {cat(e["f"]) for e in ev if e["e"] == "ret" and e.get("raised")}
+    has_deps = bool(route is not None and getattr(getattr(route, "dependant", None), "dependencies", None))
+    st = {"mw": "pass" if meta["has_mw"] else "none", "rt": "pass", "dep": "pass" if has_deps else "none",
+          "val": "pass", "fn": "pass", "res": "pass"}
+    if meta["gens"]:
+        st["clean"] = "skip"
+
+    def rest(after, state="skip"):
+        order = ["mw", "rt", "dep", "val", "fn"]
+        for k in order[order.index(after) + 1:]:
+            if st[k] != "none":
+                st[k] = state
+
+    if "mw" in raised:
+        st["mw"] = "stop"
+        rest("mw")
+    elif not ep_called and status < 400 and meta["has_mw"]:
+        st["mw"] = "end"          # 미들웨어(CORS preflight 등)가 직접 응답
+        rest("mw")
+    elif how is None or how == "partial":
+        st["rt"] = "stop"          # 404 경로 없음 / 405 메서드 불일치
+        rest("rt")
+    elif not ep_called:
+        if "dep" in raised:
+            st["dep"] = "stop"
+            rest("dep")
+        elif status == 422 or (not has_deps and status >= 400):
+            # 422, 또는 검증 오류 핸들러를 바꿔 다른 코드(예: 400)로 응답한 경우
+            st["val"] = "stop"
+            st["fn"] = "skip"
+        elif has_deps and status >= 400:
+            st["dep"] = "stop"     # 의존성(사용자 코드 또는 OAuth2PasswordBearer 같은 내장 의존성)이 거절
+            rest("dep")
+        elif status >= 400:
+            rest("rt")
+        # 그 외: /openapi.json처럼 FastAPI가 만든 경로가 정상 응답 (내 코드는 없음)
+    elif "fn" in raised and status >= 400:
+        st["fn"] = "stop"
+    if meta["gens"]:
+        gen_f = {f for f, k in first.items() if k in meta["gens"]}
+        if any(e["e"] == "resume" and e["f"] in gen_f for e in ev):
+            st["clean"] = "pass"
+        elif not any(f in gen_f for f in first):
+            st["clean"] = "none"
+    return st
+
+
+def _find(ev, pred, start=0):
+    for i in range(start, len(ev)):
+        if pred(ev[i]):
+            return i
+    return -1
+
+
+def _after(ev, i, name):
+    """i번째 이벤트(줄) 실행 직후의 변수 값. 같은 프레임의 다음 이벤트에서 찾는다."""
+    f = ev[i]["f"]
+    for e in ev[i + 1:]:
+        if e["f"] == f and "loc" in e and name in e["loc"]:
+            return e["loc"][name]
+        if e["f"] == f and e["e"] == "ret":
+            break
+    return ev[i].get("loc", {}).get(name)
+
+
+def _resolve_step(step, ev, lines, status):
+    """단계의 앵커(at)를 실제 추적에서 찾아 줄 번호와 값을 채운다."""
+    at = step.get("at", "")
+    kind, _, arg = at.partition(":")
+    out = {"hit": False, "lines": [], "vals": {}}
+    show = step.get("show", [])
+    if kind == "call":
+        i = _find(ev, lambda e: e["e"] == "call" and e["fn"] == arg)
+        if i >= 0:
+            ln = _def_line(lines, ev[i]["first"], arg)
+            out.update(hit=True, lines=[ln])
+            for v in show:
+                if v in ev[i]["loc"]:
+                    out["vals"][ln] = (out["vals"].get(ln, "") + ("  " if ln in out["vals"] else "")
+                                       + f"{v} = {ev[i]['loc'][v]}")
+    elif kind == "line":
+        sub, _, fn = arg.partition("@")
+        i = _find(ev, lambda e: e["e"] == "line" and sub in lines[e["ln"] - 1] and (not fn or e["fn"] == fn))
+        if i >= 0:
+            ln = ev[i]["ln"]
+            out.update(hit=True, lines=[ln])
+            vals = [f"{v} = {_after(ev, i, v)}" for v in show if _after(ev, i, v) is not None]
+            if vals:
+                out["vals"][ln] = "  ".join(vals)
+    elif kind == "raise":
+        i = _find(ev, lambda e: e["e"] == "exc" and e["type"] == arg)
+        if i >= 0:
+            ln = ev[i]["ln"]
+            out.update(hit=True, lines=[ln], bad=True)
+            out["vals"][ln] = f"{arg}: {ev[i]['msg']}" if ev[i]["msg"] else arg
+    elif kind == "ret":
+        i = _find(ev, lambda e: e["e"] == "ret" and e["fn"] == arg and not e.get("suspend") and not e.get("raised"))
+        if i >= 0:
+            ln = ev[i]["ln"]
+            out.update(hit=True, lines=[ln])
+            if step.get("show_ret", True):
+                out["vals"][ln] = f"→ {ev[i]['val']}"
+    elif kind == "resume":
+        i = _find(ev, lambda e: e["e"] == "resume" and e["fn"] == arg)
+        if i >= 0:
+            j = _find(ev, lambda e: e["e"] == "line" and e["f"] == ev[i]["f"], i + 1)
+            out.update(hit=True, lines=[ev[j]["ln"] if j >= 0 else ev[i]["ln"]])
+    elif kind == "skip":
+        called = _find(ev, lambda e: e["e"] == "call" and e["fn"] == arg) >= 0
+        out["hit"] = not called
+        out["skip"] = True
+        for n, l in enumerate(lines, 1):
+            if f"def {arg}(" in l:
+                out["lines"] = [n]
+                break
+    elif kind == "status":
+        out["hit"] = str(status) == arg
+    elif kind == "":
+        out["hit"] = True
+    # 프레임워크 내부에서 일어나는 단계는 관련 선언 줄을 정적으로 가리킨다
+    if step.get("src") and not out["lines"]:
+        for n, l in enumerate(lines, 1):
+            if step["src"] in l:
+                out["lines"] = [n]
+                break
+    if step.get("bad"):
+        out["bad"] = True
+    return out
+
+
+def _trace_summary(tr, meta, code, status, route, how, flow=None):
+    ev = tr.finish()
+    lines = code.splitlines()
+    ran = set()
+    for e in ev:
+        if e["e"] == "line":
+            ran.add(e["ln"])
+        elif e["e"] == "call":
+            ran.add(_def_line(lines, e["first"], e["fn"]))
+    exc_lines = sorted({e["ln"] for e in ev if e["e"] == "ret" and e.get("raised")})
+    out = {"ran": sorted(ran), "exc": exc_lines, "stages": _stages(ev, meta, status, route, how),
+           "truncated": len(ev) >= tr.cap}
+    if flow:
+        out["flow"] = [_resolve_step(s, ev, lines, status) for s in flow]
+    return out
+
+
+async def _send(app, reqs, trace=False, code=None):
+    results = []
+    meta = None
+    if trace:
+        try:
+            meta = _app_meta(app)
+        except Exception:  # noqa: BLE001  추적은 보조 기능: 실패해도 요청은 그대로 처리
+            trace = False
+    for r in reqs:
+        # root_path: 프록시 뒤에서 서버가 --root-path 로 실행된 상황을 흉내 낸다
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False,
+                                        root_path=r.get("root_path", ""))
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            buf = io.StringIO()
+            tr = _Tracer() if trace else None
+            try:
+                with contextlib.redirect_stdout(buf):
+                    if tr:
+                        sys.settrace(tr)
+                    try:
+                        resp = await client.request(r["method"], r["path"], **_build_kwargs(r))
+                    finally:
+                        if tr:
+                            sys.settrace(None)
+                hdrs = {}
+                for k, v in resp.headers.multi_items():
+                    if k in SHOW_HEADERS:
+                        hdrs[k] = v if k not in hdrs else hdrs[k] + " | " + v
+                res = {"status": resp.status_code, "headers": hdrs, "body": resp.text, "log": buf.getvalue()}
+                if tr:
+                    try:
+                        route, how = _match(app, r["method"], r["path"], r.get("root_path", ""))
+                        res["trace"] = _trace_summary(tr, meta, code, resp.status_code, route, how, r.get("flow"))
+                    except Exception as exc:  # noqa: BLE001
+                        res["trace"] = {"error": f"{type(exc).__name__}: {exc}"}
+                results.append(res)
+            except Exception as exc:  # noqa: BLE001
+                results.append({"status": 0, "headers": {}, "body": "", "log": buf.getvalue(),
+                                "error": _tb(exc)})
+    return results
+
+
+async def run_lesson(code, mode="app", reqs=None, trace=False):
+    app, info = await _exec(code, mode)
+    if app is not None:
+        info["results"] = await _send(app, reqs or [], trace=trace, code=code)
+        snap = db_snapshot(_last["ns"])
+        if snap is not None:
+            info["db"] = snap
+    return info
+
+
+# ── DB 들여다보기: 실행 중인 코드의 SQLAlchemy 엔진을 찾아 테이블을 보여 준다 ──
+def _engine(ns):
+    if not ns or "sqlalchemy" not in sys.modules:
+        return None, None
+    from sqlalchemy.engine import Engine
+    for k, v in ns.items():
+        if isinstance(v, Engine):
+            return k, v
+    return None, None
+
+
+def _cell(v):
+    if v is None or isinstance(v, (bool, int, float, str)):
+        return v
+    if isinstance(v, bytes):
+        return f"<{len(v)} bytes>"
+    return str(v)
+
+
+def db_snapshot(ns, limit=50):
+    name, eng = _engine(ns)
+    if eng is None:
+        return None
+    from sqlalchemy import inspect, text
+    insp = inspect(eng)
+    tables = []
+    with eng.connect() as c:
+        for t in insp.get_table_names():
+            cols = [{"name": col["name"], "type": str(col["type"]),
+                     "pk": bool(col.get("primary_key")), "nullable": bool(col.get("nullable", True))}
+                    for col in insp.get_columns(t)]
+            total = c.execute(text(f'SELECT COUNT(*) FROM "{t}"')).scalar()
+            rows = [[_cell(x) for x in r] for r in c.execute(text(f'SELECT * FROM "{t}" LIMIT {limit}'))]
+            idx = [i["name"] for i in insp.get_indexes(t)]
+            tables.append({"name": t, "columns": cols, "rows": rows, "total": total, "indexes": idx})
+    return {"engine": name, "url": str(eng.url), "tables": tables}
+
+
+def db_snapshot_json():
+    ns = _current.get("ns")
+    try:
+        snap = db_snapshot(ns)
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, ensure_ascii=False)
+    if snap is None:
+        return json.dumps({"ok": False, "error": "실행한 코드에서 SQLAlchemy 엔진(create_engine 결과)을 찾지 못했습니다."},
+                          ensure_ascii=False)
+    return json.dumps({"ok": True, **snap}, ensure_ascii=False)
+
+
+def db_query_json(sql, limit=200):
+    name, eng = _engine(_current.get("ns"))
+    if eng is None:
+        return json.dumps({"ok": False, "error": "먼저 코드를 실행하세요. 실행한 코드에 엔진이 있어야 합니다."},
+                          ensure_ascii=False)
+    from sqlalchemy import text
+    try:
+        with eng.begin() as c:
+            res = c.execute(text(sql))
+            if res.returns_rows:
+                cols = list(res.keys())
+                rows = [[_cell(x) for x in r] for r in res.fetchmany(limit + 1)]
+                return json.dumps({"ok": True, "columns": cols, "rows": rows[:limit],
+                                   "truncated": len(rows) > limit}, ensure_ascii=False)
+            return json.dumps({"ok": True, "rowcount": res.rowcount}, ensure_ascii=False)
+    except Exception as exc:  # noqa: BLE001
+        msg = str(getattr(exc, "orig", None) or exc).split("\n")[0]
+        return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {msg}"}, ensure_ascii=False)
+
+
+# ── 브라우저 실습실용: 앱을 한 번 띄워 두고 요청을 여러 번 보낸다 ──
+_current = {"app": None, "ns": None}
+
+
+async def load_json(code, mode):
+    app, info = await _exec(code, mode)
+    _current["app"] = app
+    _current["ns"] = _last["ns"]
+    _current["code"] = code
+    return json.dumps(info, ensure_ascii=False)
+
+
+async def send_json(reqs_json):
+    if _current["app"] is None:
+        return json.dumps({"ok": False, "error": "먼저 코드를 실행하세요."}, ensure_ascii=False)
+    res = await _send(_current["app"], json.loads(reqs_json), trace=True, code=_current.get("code", ""))
+    return json.dumps({"ok": True, "results": res}, ensure_ascii=False)
+
+
+async def run_json(code, mode, reqs_json):
+    return json.dumps(await run_lesson(code, mode, json.loads(reqs_json)), ensure_ascii=False)
+
+
+# ── 편집기 지원: Jedi 자동완성 / 시그니처 / 문법 검사 ─────────────────
+_jedi_env = None
+_KIND = {"module": "namespace", "class": "class", "instance": "variable", "function": "function",
+         "param": "variable", "path": "text", "keyword": "keyword", "property": "property",
+         "statement": "variable"}
+
+
+def _env():
+    global _jedi_env
+    if _jedi_env is None:
+        import jedi
+        jedi.settings.case_insensitive_completion = False
+        _jedi_env = jedi.InterpreterEnvironment()
+    return _jedi_env
+
+
+def _doc(obj, limit=600):
+    try:
+        d = obj.docstring(raw=False) or ""
+    except Exception:  # noqa: BLE001
+        return ""
+    return d if len(d) <= limit else d[:limit] + "…"
+
+
+def complete_json(code, line, col, max_items=80):
+    """line: 1-based, col: 0-based (Jedi 규칙)."""
+    import jedi
+    try:
+        script = jedi.Script(code, path="main.py", environment=_env())
+        comps = script.complete(line, col)
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({"items": [], "error": str(exc)})
+    items = []
+    for c in comps[:max_items]:
+        if c.name.startswith("__") and not c.name.endswith("__"):
+            continue
+        items.append({"label": c.name, "type": _KIND.get(c.type, "text"),
+                      "detail": (c.description or "")[:80],
+                      "prefixLen": len(c.name) - len(c.complete or "")})
+    return json.dumps({"items": items}, ensure_ascii=False)
+
+
+def _split_top(text, sep):
+    """sep 위치 중 괄호·따옴표 바깥에 있는 마지막 인덱스."""
+    depth, quote, last = 0, None, -1
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == "\\":
+                i += 1
+            elif text.startswith(quote, i):
+                i += len(quote) - 1
+                quote = None
+        elif text.startswith('"""', i) or text.startswith("'''", i):
+            quote = text[i:i + 3]
+            i += 2
+        elif ch in "\"'":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == sep and depth == 0:
+            last = i
+        i += 1
+    return last
+
+
+def _short_param(p):
+    """FastAPI는 Annotated[..., Doc("...")]로 설명을 달아 시그니처가 길다. 이름과 짧은 기본값만 남긴다."""
+    text = p.to_string()
+    eq = _split_top(text, "=")
+    head, default = (text[:eq], text[eq + 1:].strip()) if eq >= 0 else (text, None)
+    colon = _split_top(head, ":")
+    name = (head[:colon] if colon >= 0 else head).strip()
+    if default is not None:
+        default = " ".join(default.split())
+        if len(default) > 18:
+            default = "…"
+        return f"{name}={default}"
+    return name
+
+
+def signature_json(code, line, col):
+    import jedi
+    try:
+        sigs = jedi.Script(code, path="main.py", environment=_env()).get_signatures(line, col)
+    except Exception:  # noqa: BLE001
+        return json.dumps({"sigs": []})
+    out = []
+    for s in sigs[:2]:
+        params = [_short_param(p) for p in s.params]
+        out.append({"name": s.name, "index": s.index, "params": params,
+                    "doc": _doc_raw(s, 300)})
+    return json.dumps({"sigs": out}, ensure_ascii=False)
+
+
+def _doc_raw(obj, limit=600):
+    try:
+        d = (obj.docstring(raw=True) or "").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+    return d if len(d) <= limit else d[:limit] + "…"
+
+
+def info_json(code, line, col, name):
+    import jedi
+    try:
+        script = jedi.Script(code, path="main.py", environment=_env())
+        for c in script.complete(line, col):
+            if c.name == name:
+                sigs = c.get_signatures()[:1]
+                sig = f"{c.name}(" + ", ".join(_short_param(p) for p in sigs[0].params) + ")" if sigs else ""
+                return json.dumps({"doc": _doc_raw(c), "sig": sig}, ensure_ascii=False)
+    except Exception:  # noqa: BLE001
+        pass
+    return json.dumps({"doc": "", "sig": ""})
+
+
+def check_syntax_json(code):
+    try:
+        compile(code, "main.py", "exec")
+    except SyntaxError as e:
+        return json.dumps({"line": e.lineno or 1, "col": max((e.offset or 1) - 1, 0),
+                           "end_line": getattr(e, "end_lineno", None) or e.lineno or 1,
+                           "end_col": max((getattr(e, "end_offset", None) or (e.offset or 1)) - 1, 0),
+                           "msg": f"{type(e).__name__}: {e.msg}"}, ensure_ascii=False)
+    return json.dumps(None)
+
+
+# ── 연습문제 채점 ─────────────────────────────────────────────
+def _subset(expected, actual, path="$"):
+    """expected의 모든 키/값이 actual에 있으면 통과. 리스트는 길이와 각 원소를 비교."""
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return f"{path}: 객체여야 하는데 {type(actual).__name__}"
+        for k, v in expected.items():
+            if k not in actual:
+                return f"{path}.{k}: 키가 없습니다"
+            err = _subset(v, actual[k], f"{path}.{k}")
+            if err:
+                return err
+        return None
+    if isinstance(expected, list):
+        if not isinstance(actual, list) or len(actual) != len(expected):
+            return f"{path}: 길이 {len(expected)}인 배열이어야 하는데 {json.dumps(actual, ensure_ascii=False)[:80]}"
+        for i, (e, a) in enumerate(zip(expected, actual)):
+            err = _subset(e, a, f"{path}[{i}]")
+            if err:
+                return err
+        return None
+    if expected != actual or type(expected) is not type(actual):
+        if isinstance(expected, float) and isinstance(actual, (int, float)) and abs(expected - actual) < 1e-9:
+            return None
+        return f"{path}: {json.dumps(expected, ensure_ascii=False)} 기대, 실제 {json.dumps(actual, ensure_ascii=False)[:80]}"
+    return None
+
+
+def _check(expect, status, headers, text):
+    msgs = []
+    if "status" in expect and status != expect["status"]:
+        msgs.append(f"상태 코드 {expect['status']} 기대, 실제 {status}")
+    data, parsed = None, False
+    if any(k in expect for k in ("json", "json_has", "json_lacks", "json_len")):
+        try:
+            data, parsed = json.loads(text), True
+        except Exception:  # noqa: BLE001
+            msgs.append("응답 본문이 JSON이 아닙니다")
+    if parsed:
+        if "json" in expect and data != expect["json"]:
+            msgs.append(f"본문 {json.dumps(expect['json'], ensure_ascii=False)} 기대, 실제 {text[:120]}")
+        if "json_has" in expect:
+            err = _subset(expect["json_has"], data)
+            if err:
+                msgs.append(err)
+        for key in expect.get("json_lacks", []):
+            if isinstance(data, dict) and key in data:
+                msgs.append(f"응답에 '{key}'가 있으면 안 됩니다")
+        if "json_len" in expect and (not isinstance(data, list) or len(data) != expect["json_len"]):
+            msgs.append(f"길이 {expect['json_len']}인 배열 기대")
+    for k, v in expect.get("headers", {}).items():
+        got = headers.get(k.lower())
+        if got is None or v.lower() not in got.lower():
+            msgs.append(f"헤더 {k}에 '{v}' 기대, 실제 {got!r}")
+    for k in expect.get("headers_lacks", []):
+        if k.lower() in headers:
+            msgs.append(f"헤더 {k}가 없어야 하는데 {headers[k.lower()]!r}")
+    for k in expect.get("headers_present", []):
+        if k.lower() not in headers:
+            msgs.append(f"헤더 {k}가 있어야 합니다")
+    for s in expect.get("body_has", []):
+        if s not in text:
+            msgs.append(f"본문에 '{s}'가 있어야 합니다")
+    return msgs
+
+
+def _subst(obj, saved):
+    """테스트 요청 안의 {{이름}}을 앞선 응답에서 저장한 값으로 바꾼다 (예: 로그인 토큰)."""
+    if isinstance(obj, str):
+        for k, v in saved.items():
+            obj = obj.replace("{{" + k + "}}", str(v))
+        return obj
+    if isinstance(obj, dict):
+        return {k: _subst(v, saved) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_subst(v, saved) for v in obj]
+    return obj
+
+
+async def grade(code, tests):
+    if tests and tests[0].get("kind") in ("script", "mutant"):
+        return await grade_script(code, tests)
+    app, info = await _exec(code, "app")
+    if app is None:
+        return {"ok": False, "error": info.get("error"), "stdout": info.get("stdout", "")}
+    out = []
+    saved = {}
+    for t in tests:
+        req = _subst(t["req"], saved)
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            buf = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(buf):
+                    resp = await client.request(req["method"], req["path"], **_build_kwargs(req))
+                hdrs = {k: v for k, v in resp.headers.items()}
+                msgs = _check(t["expect"], resp.status_code, hdrs, resp.text)
+                for var, key in (t.get("save") or {}).items():
+                    try:
+                        saved[var] = json.loads(resp.text)[key]
+                    except Exception:  # noqa: BLE001
+                        msgs.append(f"응답에서 '{key}' 값을 꺼낼 수 없어 다음 테스트에 쓸 수 없습니다")
+                out.append({"name": t["name"], "pass": not msgs, "msgs": msgs, "status": resp.status_code,
+                            "body": resp.text[:400]})
+            except Exception as exc:  # noqa: BLE001
+                out.append({"name": t["name"], "pass": False, "msgs": ["요청 처리 중 예외: " + _tb(exc)[-300:]],
+                            "status": 0, "body": ""})
+    return {"ok": True, "results": out, "stdout": info.get("stdout", "")}
+
+
+async def _run_script(code):
+    """main()을 실행해 (통과 여부, 출력, 실패 메시지)를 돌려준다."""
+    import re
+    _, info = await _exec(code, "script")
+    if info.get("ok"):
+        return True, info.get("stdout", ""), ""
+    err = info.get("error", "")
+    last = err.strip().splitlines()[-1] if err.strip() else "오류"
+    lines = re.findall(r'File "main.py", line (\d+)', err)
+    if lines:
+        n = int(lines[-1])
+        src = code.splitlines()[n - 1].strip() if 0 < n <= len(code.splitlines()) else ""
+        last = f"{last} (main.py {n}행: {src})"
+    return False, info.get("stdout", ""), (err, last)
+
+
+async def grade_script(code, tests):
+    """테스트 작성형 문제.
+    script: 내 테스트가 올바른 앱에서 통과해야 한다.
+    mutant: 앱 코드 일부를 일부러 망가뜨린 버전에서는 내 테스트가 실패해야 한다(버그를 잡아내는지)."""
+    out, stdout = [], ""
+    if any(t["kind"] == "mutant" and t["replace"][0] not in code for t in tests):
+        msg = "앱 코드(‘건드리지 마세요’ 구역)가 바뀌어 채점할 수 없습니다. ‘처음으로’로 되돌린 뒤 main() 안의 테스트만 작성하세요."
+        return {"ok": True, "stdout": "", "results": [{"name": t["name"], "pass": False, "msgs": [msg]} for t in tests]}
+    for t in tests:
+        if t["kind"] == "script":
+            ok, so, err = await _run_script(code)
+            stdout = so
+            if ok:
+                out.append({"name": t["name"], "pass": True, "msgs": []})
+            else:
+                full, last = err
+                if "AssertionError" not in full:
+                    # 문법 오류·예외: 오류 내용을 그대로 보여 준다
+                    return {"ok": False, "error": full, "stdout": so}
+                out.append({"name": t["name"], "pass": False,
+                            "msgs": ["올바른 앱에서 assert가 실패했습니다: " + last]})
+                out += [{"name": x["name"], "pass": False, "msgs": ["올바른 앱에서 먼저 통과해야 확인합니다"]}
+                        for x in tests if x is not t and x["kind"] == "mutant"]
+                return {"ok": True, "results": out, "stdout": so}
+            continue
+        old, new = t["replace"]
+        if old not in code:
+            out.append({"name": t["name"], "pass": False,
+                        "msgs": ["앱 코드(‘건드리지 마세요’ 구역)가 바뀌어 확인할 수 없습니다. 처음으로 되돌린 뒤 테스트만 작성하세요."]})
+            continue
+        ok, _, err = await _run_script(code.replace(old, new, 1))
+        if ok:
+            out.append({"name": t["name"], "pass": False, "msgs": ["이 버그가 있는 앱에서도 테스트가 모두 통과했습니다. 이 경우를 검사하는 assert를 추가하세요."]})
+        elif "AssertionError" in err[0]:
+            out.append({"name": t["name"], "pass": True, "msgs": []})
+        else:
+            out.append({"name": t["name"], "pass": False, "msgs": ["assert가 아닌 예외로 멈췄습니다: " + err[1]]})
+    return {"ok": True, "results": out, "stdout": stdout}
+
+
+async def grade_json(code, tests_json):
+    return json.dumps(await grade(code, json.loads(tests_json)), ensure_ascii=False)
