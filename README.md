@@ -21,7 +21,10 @@ python -m http.server 8000
 
 ## 알아 둘 점
 
-- 진도와 연습문제 초안은 **이 브라우저(localStorage)에만** 저장됩니다. 다른 기기와는 공유되지 않아요.
+- 진도와 연습문제 초안은 기본적으로 **이 브라우저(localStorage)에** 저장됩니다.
+- 다른 기기와 이어서 보려면 왼쪽 진도 카드의 **동기화**를 누르세요.
+  - **Gist 동기화:** [Fine-grained 토큰](https://github.com/settings/personal-access-tokens/new)(Account permissions → Gists: Read and write)을 넣으면 내 계정에 비공개 Gist(`fastapi-lab-state.json`)를 만들어 자동으로 저장합니다. 다른 기기에서 같은 토큰을 넣으면 그 Gist를 찾아 합칩니다. 토큰은 그 브라우저에만 저장됩니다.
+  - **파일로 옮기기:** JSON으로 내보내고 다른 브라우저에서 가져오면 진도가 합쳐집니다.
 - "실행 환경 켜기"를 누르면 약 15MB를 내려받습니다. Pyodide 엔진은 jsDelivr CDN에서, 표준 라이브러리와 패키지는 이 저장소의 `py/`에서 받습니다. SQL 챕터는 처음 열 때 SQLAlchemy · SQLModel(약 2.8MB)을 추가로 받습니다.
 - WebSocket 챕터는 브라우저 실행 환경에서 지원되지 않아 코드를 로컬에서 실행해야 합니다.
 - 기록된 응답은 로컬 CPython에서 같은 버전으로 실제 실행한 결과이고, 브라우저 실행 결과와 같은지 검증했습니다.
