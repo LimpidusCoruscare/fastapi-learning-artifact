@@ -1,23 +1,23 @@
-# 제3자 고지 (Third-Party Notices)
+# Third-Party Notices
 
-이 저장소는 아래의 오픈소스 소프트웨어와 문서를 포함하거나 바탕으로 합니다. 각 항목은 해당 저작권자의 라이선스를 따르며, 라이선스 전문은 아래에 원문 그대로 옮겼습니다.
+This repository includes, or is based on, the open-source software and documentation listed below. Each component is distributed under its own license. The copyright notices and full license texts are reproduced verbatim below.
 
-이 프로젝트 자체 코드(`index.html`의 페이지 코드와 `py/runner.txt`)에 대한 라이선스는 따로 정하지 않았습니다.
+No license has been chosen for this project's own code (the page code in `index.html` and `py/runner.txt`).
 
-## FastAPI 공식 문서
+## FastAPI documentation
 
-챕터 설명, 요약, 예제 코드는 [FastAPI 공식 문서](https://fastapi.tiangolo.com/)(Tutorial · Advanced User Guide)를 바탕으로 한국어로 다시 정리한 것입니다. 각 챕터의 "공식 문서 원문" 링크로 해당 원문에 갈 수 있습니다. FastAPI 문서는 FastAPI 저장소의 일부로 MIT 라이선스를 따릅니다. 라이선스 전문은 아래 [FastAPI](#fastapi) 항목에 있습니다.
+The chapter explanations, summaries and example code are a Korean adaptation of the [FastAPI documentation](https://fastapi.tiangolo.com/) (Tutorial and Advanced User Guide). Each chapter links to the original page ("공식 문서 원문"). The FastAPI documentation is part of the FastAPI repository and is licensed under the MIT License; see the [FastAPI](#fastapi) section below for the full text.
 
-## 요약
+## Summary
 
-| 구성 요소 | 버전 | 라이선스 | 들어 있는 곳 |
+| Component | Version | License | Location in this repository |
 | --- | --- | --- | --- |
 | [Pyodide](https://github.com/pyodide/pyodide) | 314.0.7 | MPL-2.0 | `py/pyodide.asm.wasm` |
-| [Emscripten](https://github.com/emscripten-core/emscripten) | - | MIT 또는 University of Illinois/NCSA | `py/pyodide.asm.wasm` |
-| [CPython (Python 3.14 표준 라이브러리)](https://github.com/python/cpython) | 3.14 | PSF-2.0 | `py/python_stdlib.b64.txt`, `py/pyodide.asm.wasm` |
+| [Emscripten](https://github.com/emscripten-core/emscripten) | - | MIT or University of Illinois/NCSA | `py/pyodide.asm.wasm` |
+| [CPython (Python 3.14 standard library)](https://github.com/python/cpython) | 3.14 | PSF-2.0 | `py/python_stdlib.b64.txt`, `py/pyodide.asm.wasm` |
 | [CodeMirror 6](https://github.com/codemirror/dev) | - | MIT | `editor.js` |
 | [Lezer (@lezer/common, @lezer/lr, @lezer/highlight, @lezer/python)](https://github.com/lezer-parser) | - | MIT | `editor.js` |
-| [Material Symbols](https://github.com/google/material-design-icons) | - | Apache-2.0 | `index.html` (아이콘 SVG 경로를 인라인으로 포함) |
+| [Material Symbols](https://github.com/google/material-design-icons) | - | Apache-2.0 | `index.html` (icon SVG paths inlined) |
 | [FastAPI](https://github.com/fastapi/fastapi) | 0.146.0 | MIT | `py/wheels.b64.txt` |
 | [Starlette](https://github.com/Kludex/starlette) | 1.6.0 | BSD-3-Clause | `py/wheels.b64.txt` |
 | [Pydantic](https://github.com/pydantic/pydantic) | 2.14.1 | MIT | `py/wheels.b64.txt` |
@@ -42,18 +42,18 @@
 | [SQLAlchemy](https://github.com/sqlalchemy/sqlalchemy) | 2.1.5 | MIT | `py/sql.b64.txt` |
 | [SQLModel](https://github.com/fastapi/sqlmodel) | 0.0.48 | MIT | `py/sql.b64.txt` |
 
-`py/*.b64.txt` 안의 각 Python 패키지(wheel)에는 해당 패키지의 라이선스 파일도 그대로 들어 있습니다.
+Each Python package (wheel) inside `py/*.b64.txt` also still contains its own license files.
 
 ---
 
 ## Pyodide
 
-- 버전: 314.0.7
-- 라이선스: MPL-2.0
-- 출처: <https://github.com/pyodide/pyodide>
-- 포함 위치: py/pyodide.asm.wasm
+- Version: 314.0.7
+- License: MPL-2.0
+- Source: <https://github.com/pyodide/pyodide>
+- Included in: `py/pyodide.asm.wasm`
 
-Pyodide 엔진을 수정 없이 그대로 배포합니다. 소스 코드는 <https://github.com/pyodide/pyodide> 에서 받을 수 있습니다. 실행 시 불러오는 `pyodide.js`·`pyodide.mjs`는 이 저장소가 아니라 jsDelivr CDN에서 받습니다.
+The Pyodide engine is redistributed unmodified. Its source code is available at <https://github.com/pyodide/pyodide>. The `pyodide.js` / `pyodide.mjs` loaders are not included in this repository; they are loaded at runtime from the jsDelivr CDN.
 
 **LICENSE**
 
@@ -437,12 +437,12 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ## Emscripten
 
-- 버전: -
-- 라이선스: MIT 또는 University of Illinois/NCSA
-- 출처: <https://github.com/emscripten-core/emscripten>
-- 포함 위치: py/pyodide.asm.wasm
+- Version: -
+- License: MIT or University of Illinois/NCSA
+- Source: <https://github.com/emscripten-core/emscripten>
+- Included in: `py/pyodide.asm.wasm`
 
-Pyodide 엔진에 Emscripten 런타임이 포함되어 있습니다. Pyodide가 함께 빌드한 그 밖의 라이브러리 고지는 Pyodide 저장소를 참고하세요.
+The Pyodide engine includes the Emscripten runtime. For notices of other libraries compiled into Pyodide, see the Pyodide repository.
 
 **LICENSE**
 
@@ -552,12 +552,12 @@ flag will run closure compiler from third_party/).
 
 ---
 
-## CPython (Python 3.14 표준 라이브러리)
+## CPython (Python 3.14 standard library)
 
-- 버전: 3.14
-- 라이선스: PSF-2.0
-- 출처: <https://github.com/python/cpython>
-- 포함 위치: py/python_stdlib.b64.txt, py/pyodide.asm.wasm
+- Version: 3.14
+- License: PSF-2.0
+- Source: <https://github.com/python/cpython>
+- Included in: `py/python_stdlib.b64.txt`, `py/pyodide.asm.wasm`
 
 **LICENSE**
 
@@ -845,12 +845,12 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ## CodeMirror 6
 
-- 버전: -
-- 라이선스: MIT
-- 출처: <https://github.com/codemirror/dev>
-- 포함 위치: editor.js
+- Version: -
+- License: MIT
+- Source: <https://github.com/codemirror/dev>
+- Included in: `editor.js`
 
-`@codemirror/*` 패키지와 함께 쓰는 `style-mod`, `w3c-keyname`, `crelt`도 같은 저작자의 MIT 라이선스입니다.
+Covers the `@codemirror/*` packages. The bundled helper packages `style-mod`, `w3c-keyname` and `crelt` are by the same author under the MIT License.
 
 **LICENSE**
 
@@ -883,10 +883,10 @@ THE SOFTWARE.
 
 ## Lezer (@lezer/common, @lezer/lr, @lezer/highlight, @lezer/python)
 
-- 버전: -
-- 라이선스: MIT
-- 출처: <https://github.com/lezer-parser>
-- 포함 위치: editor.js
+- Version: -
+- License: MIT
+- Source: <https://github.com/lezer-parser>
+- Included in: `editor.js`
 
 **LICENSE**
 
@@ -918,10 +918,10 @@ THE SOFTWARE.
 
 ## Material Symbols
 
-- 버전: -
-- 라이선스: Apache-2.0
-- 출처: <https://github.com/google/material-design-icons>
-- 포함 위치: index.html (아이콘 SVG 경로를 인라인으로 포함)
+- Version: -
+- License: Apache-2.0
+- Source: <https://github.com/google/material-design-icons>
+- Included in: `index.html` (icon SVG paths inlined)
 
 **LICENSE**
 
@@ -1133,10 +1133,10 @@ THE SOFTWARE.
 
 ## FastAPI
 
-- 버전: 0.146.0
-- 라이선스: MIT
-- 출처: <https://github.com/fastapi/fastapi>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.146.0
+- License: MIT
+- Source: <https://github.com/fastapi/fastapi>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1168,10 +1168,10 @@ THE SOFTWARE.
 
 ## Starlette
 
-- 버전: 1.6.0
-- 라이선스: BSD-3-Clause
-- 출처: <https://github.com/Kludex/starlette>
-- 포함 위치: py/wheels.b64.txt
+- Version: 1.6.0
+- License: BSD-3-Clause
+- Source: <https://github.com/Kludex/starlette>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.md**
 
@@ -1209,10 +1209,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Pydantic
 
-- 버전: 2.14.1
-- 라이선스: MIT
-- 출처: <https://github.com/pydantic/pydantic>
-- 포함 위치: py/wheels.b64.txt
+- Version: 2.14.1
+- License: MIT
+- Source: <https://github.com/pydantic/pydantic>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1244,10 +1244,10 @@ SOFTWARE.
 
 ## pydantic-core
 
-- 버전: 2.50.1
-- 라이선스: MIT
-- 출처: <https://github.com/pydantic/pydantic>
-- 포함 위치: py/wheels.b64.txt
+- Version: 2.50.1
+- License: MIT
+- Source: <https://github.com/pydantic/pydantic>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1279,10 +1279,10 @@ SOFTWARE.
 
 ## pydantic-settings
 
-- 버전: 2.16.0
-- 라이선스: MIT
-- 출처: <https://github.com/pydantic/pydantic-settings>
-- 포함 위치: py/wheels.b64.txt
+- Version: 2.16.0
+- License: MIT
+- Source: <https://github.com/pydantic/pydantic-settings>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1314,10 +1314,10 @@ SOFTWARE.
 
 ## typing-inspection
 
-- 버전: 0.4.4
-- 라이선스: MIT
-- 출처: <https://github.com/pydantic/typing-inspection>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.4.4
+- License: MIT
+- Source: <https://github.com/pydantic/typing-inspection>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1349,10 +1349,10 @@ SOFTWARE.
 
 ## annotated-types
 
-- 버전: 0.8.0
-- 라이선스: MIT
-- 출처: <https://github.com/annotated-types/annotated-types>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.8.0
+- License: MIT
+- Source: <https://github.com/annotated-types/annotated-types>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1384,10 +1384,10 @@ SOFTWARE.
 
 ## annotated-doc
 
-- 버전: 0.0.5
-- 라이선스: MIT
-- 출처: <https://github.com/fastapi/annotated-doc>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.0.5
+- License: MIT
+- Source: <https://github.com/fastapi/annotated-doc>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1419,10 +1419,10 @@ THE SOFTWARE.
 
 ## typing_extensions
 
-- 버전: 4.16.0
-- 라이선스: PSF-2.0
-- 출처: <https://github.com/python/typing_extensions>
-- 포함 위치: py/wheels.b64.txt
+- Version: 4.16.0
+- License: PSF-2.0
+- Source: <https://github.com/python/typing_extensions>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1712,10 +1712,10 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ## AnyIO
 
-- 버전: 4.15.1
-- 라이선스: MIT
-- 출처: <https://github.com/agronholm/anyio>
-- 포함 위치: py/wheels.b64.txt
+- Version: 4.15.1
+- License: MIT
+- Source: <https://github.com/agronholm/anyio>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1746,10 +1746,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## HTTPX
 
-- 버전: 0.28.1
-- 라이선스: BSD-3-Clause
-- 출처: <https://github.com/encode/httpx>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.28.1
+- License: BSD-3-Clause
+- Source: <https://github.com/encode/httpx>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.md**
 
@@ -1772,10 +1772,10 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## HTTP Core
 
-- 버전: 1.0.9
-- 라이선스: BSD-3-Clause
-- 출처: <https://github.com/encode/httpcore>
-- 포함 위치: py/wheels.b64.txt
+- Version: 1.0.9
+- License: BSD-3-Clause
+- Source: <https://github.com/encode/httpcore>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.md**
 
@@ -1813,10 +1813,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## h11
 
-- 버전: 0.16.0
-- 라이선스: MIT
-- 출처: <https://github.com/python-hyper/h11>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.16.0
+- License: MIT
+- Source: <https://github.com/python-hyper/h11>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.txt**
 
@@ -1849,10 +1849,10 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## idna
 
-- 버전: 3.20
-- 라이선스: BSD-3-Clause
-- 출처: <https://github.com/kjd/idna>
-- 포함 위치: py/wheels.b64.txt
+- Version: 3.20
+- License: BSD-3-Clause
+- Source: <https://github.com/kjd/idna>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.md**
 
@@ -1894,10 +1894,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## certifi
 
-- 버전: 2026.10.18
-- 라이선스: MPL-2.0
-- 출처: <https://github.com/certifi/python-certifi>
-- 포함 위치: py/wheels.b64.txt
+- Version: 2026.10.18
+- License: MPL-2.0
+- Source: <https://github.com/certifi/python-certifi>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -1928,10 +1928,10 @@ one at http://mozilla.org/MPL/2.0/.
 
 ## python-multipart
 
-- 버전: 0.0.32
-- 라이선스: Apache-2.0
-- 출처: <https://github.com/Kludex/python-multipart>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.0.32
+- License: Apache-2.0
+- Source: <https://github.com/Kludex/python-multipart>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.txt**
 
@@ -2143,10 +2143,10 @@ one at http://mozilla.org/MPL/2.0/.
 
 ## python-dotenv
 
-- 버전: 1.2.4
-- 라이선스: BSD-3-Clause
-- 출처: <https://github.com/theskumar/python-dotenv>
-- 포함 위치: py/wheels.b64.txt
+- Version: 1.2.4
+- License: BSD-3-Clause
+- Source: <https://github.com/theskumar/python-dotenv>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -2184,10 +2184,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## PyJWT
 
-- 버전: 2.15.1
-- 라이선스: MIT
-- 출처: <https://github.com/jpadilla/pyjwt>
-- 포함 위치: py/wheels.b64.txt
+- Version: 2.15.1
+- License: MIT
+- Source: <https://github.com/jpadilla/pyjwt>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -2231,10 +2231,10 @@ A full list of contributors can be found on GitHub’s `overview <https://github
 
 ## OpenTelemetry API
 
-- 버전: 1.45.1
-- 라이선스: Apache-2.0
-- 출처: <https://github.com/open-telemetry/opentelemetry-python>
-- 포함 위치: py/wheels.b64.txt
+- Version: 1.45.1
+- License: Apache-2.0
+- Source: <https://github.com/open-telemetry/opentelemetry-python>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE**
 
@@ -2446,10 +2446,10 @@ A full list of contributors can be found on GitHub’s `overview <https://github
 
 ## Jedi
 
-- 버전: 0.19.2
-- 라이선스: MIT
-- 출처: <https://github.com/davidhalter/jedi>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.19.2
+- License: MIT
+- Source: <https://github.com/davidhalter/jedi>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.txt**
 
@@ -2561,10 +2561,10 @@ Note: (@user) means a github user name.
 
 ## parso
 
-- 버전: 0.8.6
-- 라이선스: MIT
-- 출처: <https://github.com/davidhalter/parso>
-- 포함 위치: py/wheels.b64.txt
+- Version: 0.8.6
+- License: MIT
+- Source: <https://github.com/davidhalter/parso>
+- Included in: `py/wheels.b64.txt`
 
 **LICENSE.txt**
 
@@ -2724,10 +2724,10 @@ Note: (@user) means a github user name.
 
 ## SQLAlchemy
 
-- 버전: 2.1.5
-- 라이선스: MIT
-- 출처: <https://github.com/sqlalchemy/sqlalchemy>
-- 포함 위치: py/sql.b64.txt
+- Version: 2.1.5
+- License: MIT
+- Source: <https://github.com/sqlalchemy/sqlalchemy>
+- Included in: `py/sql.b64.txt`
 
 **LICENSE**
 
@@ -2792,10 +2792,10 @@ Major contributing authors include:
 
 ## SQLModel
 
-- 버전: 0.0.48
-- 라이선스: MIT
-- 출처: <https://github.com/fastapi/sqlmodel>
-- 포함 위치: py/sql.b64.txt
+- Version: 0.0.48
+- License: MIT
+- Source: <https://github.com/fastapi/sqlmodel>
+- Included in: `py/sql.b64.txt`
 
 **LICENSE**
 

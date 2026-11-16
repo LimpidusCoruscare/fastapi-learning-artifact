@@ -1,5 +1,11 @@
 # FastAPI 실습실
 
+> **English summary** — A Korean-language study page that condenses the official FastAPI documentation (basics, intermediate, advanced) into 26 chapters and **runs real FastAPI inside the browser** with Pyodide. Nothing to install, no server needed. It includes an editable lab with request tracing, 20 auto-graded exercises and quizzes.
+>
+> - **Open:** <https://limpiduscoruscare.github.io/fastapi-learning-artifact/> (or serve the folder locally with `python -m http.server`)
+> - **Progress:** stored in your browser's localStorage. Optionally, sync it to a private GitHub Gist or export/import it as a JSON file. Use the "동기화" button in the sidebar.
+> - **Licenses:** based on the FastAPI documentation (MIT). Third-party copyright notices and license texts are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 FastAPI 공식 문서(기초 · 중급 · 고급)를 26개 챕터로 정리하고, **브라우저 안에서 실제 FastAPI를 실행**해 보는 학습 페이지입니다. 설치할 것도, 서버도 필요 없습니다.
 
 - **실습실:** 예제 코드를 고쳐 실행하고 요청을 보내 응답을 확인합니다 (Pyodide · Python 3.14 · FastAPI 0.146.0 · Pydantic 2.14.1)
@@ -43,6 +49,8 @@ python -m http.server 8000
 | `py/wheels.b64.txt`, `py/sql.b64.txt` | 브라우저에 설치할 패키지 (FastAPI, Pydantic, Jedi / SQLAlchemy, SQLModel) |
 | `py/runner.txt` | 실행 · 실행 추적 · 채점 코드 |
 
-## 라이선스 고지
+## 라이선스 고지 · License notices
 
 챕터 내용과 예제는 [FastAPI 공식 문서](https://fastapi.tiangolo.com/)(MIT, © Sebastián Ramírez)를 바탕으로 정리했습니다. 함께 배포하는 Pyodide · CPython 표준 라이브러리 · FastAPI 등 Python 패키지 · CodeMirror · Material Symbols의 저작권 표시와 라이선스 전문은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 있습니다.
+
+The chapter content and examples are adapted from the [FastAPI documentation](https://fastapi.tiangolo.com/) (MIT License, © Sebastián Ramírez). Copyright notices and full license texts for the bundled third-party components are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). These components are Pyodide, the CPython standard library, FastAPI and other Python packages, CodeMirror, and Material Symbols.
