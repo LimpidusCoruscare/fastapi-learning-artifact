@@ -21,8 +21,8 @@ The chapter explanations, summaries and example code are a Korean adaptation of 
 | [SQLite](https://sqlite.org/copyright.html) | - | Public domain | `py/pyodide.asm.wasm` |
 | [musl libc](https://musl.libc.org/) | - | MIT | `py/pyodide.asm.wasm` |
 | [LLVM libc++ / libc++abi](https://github.com/llvm/llvm-project) | - | Apache-2.0 WITH LLVM-exception | `py/pyodide.asm.wasm` |
-| [CodeMirror 6](https://github.com/codemirror/dev) | - | MIT | `editor.js` |
-| [Lezer](https://github.com/lezer-parser) | - | MIT | `editor.js` |
+| [CodeMirror 6](https://codemirror.net/) | - | MIT | `editor.js` |
+| [Lezer](https://lezer.codemirror.net/) | - | MIT | `editor.js` |
 | [Material Symbols](https://github.com/google/material-design-icons) | - | Apache-2.0 | `index.html` (icon SVG paths inlined) |
 | [FastAPI](https://github.com/fastapi/fastapi) | 0.146.0 | MIT | `py/wheels.b64.txt` |
 | [Starlette](https://github.com/Kludex/starlette) | 1.6.0 | BSD-3-Clause | `py/wheels.b64.txt` |
@@ -2171,18 +2171,89 @@ Emscripten's C++ runtime. Under the LLVM exception, no attribution is required f
 
 - Version: -
 - License: MIT
-- Source: <https://github.com/codemirror/dev>
+- Source: <https://codemirror.net/>
 - Included in: `editor.js`
 
-Bundled packages: `@codemirror/state`, `@codemirror/view`, `@codemirror/language`, `@codemirror/commands`, `@codemirror/autocomplete`, `@codemirror/lint`, `@codemirror/search`, and the helper packages `style-mod`, `w3c-keyname` and `crelt`. All are by the same authors under the MIT License.
+Bundled packages: `@codemirror/state`, `@codemirror/view`, `@codemirror/language`, `@codemirror/commands`, `@codemirror/autocomplete`, `@codemirror/lint`, `@codemirror/search`, and the helper packages `style-mod`, `w3c-keyname` and `crelt`. All are under the MIT License. The texts below are the `LICENSE` files of the published npm packages. Source code: <https://code.haverbeke.berlin/codemirror> (moved from GitHub).
 
-**LICENSE**
+**LICENSE (@codemirror/*)**
 
 ```text
 MIT License
 
-Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin>, Adrian
-Heine <mail@adrianheine.de>, and others
+Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+**LICENSE (style-mod)**
+
+```text
+Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+**LICENSE (w3c-keyname)**
+
+```text
+Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+**LICENSE (crelt)**
+
+```text
+Copyright (C) 2020 by Marijn Haverbeke <marijn@haverbeke.berlin>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -2209,10 +2280,10 @@ THE SOFTWARE.
 
 - Version: -
 - License: MIT
-- Source: <https://github.com/lezer-parser>
+- Source: <https://lezer.codemirror.net/>
 - Included in: `editor.js`
 
-Bundled packages: `@lezer/common`, `@lezer/lr`, `@lezer/highlight` and `@lezer/python`. The first three carry the 2018 notice, and `@lezer/python` carries the 2020 notice. Both are reproduced below.
+Bundled packages: `@lezer/common`, `@lezer/lr`, `@lezer/highlight` and `@lezer/python`. The first three carry the 2018 notice, and `@lezer/python` carries the 2020 notice. Both are reproduced below. Source code: <https://code.haverbeke.berlin/lezer> (moved from GitHub).
 
 **LICENSE (@lezer/common, @lezer/lr, @lezer/highlight)**
 
