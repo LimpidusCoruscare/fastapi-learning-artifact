@@ -42,3 +42,7 @@ python -m http.server 8000
 | `py/python_stdlib.b64.txt` | Python 표준 라이브러리 |
 | `py/wheels.b64.txt`, `py/sql.b64.txt` | 브라우저에 설치할 패키지 (FastAPI, Pydantic, Jedi / SQLAlchemy, SQLModel) |
 | `py/runner.txt` | 실행 · 실행 추적 · 채점 코드 |
+
+## 라이선스 고지
+
+챕터 내용과 예제는 [FastAPI 공식 문서](https://fastapi.tiangolo.com/)(MIT, © Sebastián Ramírez)를 바탕으로 정리했습니다. 함께 배포하는 Pyodide · CPython 표준 라이브러리 · FastAPI 등 Python 패키지 · CodeMirror · Material Symbols의 저작권 표시와 라이선스 전문은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 있습니다.
