@@ -153,12 +153,13 @@ dialog.sync-dlg::backdrop { background: color-mix(in srgb, var(--md-scrim) 40%, 
 /* 접힌 메뉴 = M3 navigation rail: 진도, 완료 표시, 챕터 번호, 현재 위치만 */
 @media (min-width: 761px) and (min-height: 560px) {
   /* 데스크톱: 챕터 목록을 스크롤해도 진도 카드는 레일 위쪽에 고정 */
-  /* 카드 바깥을 레일 색 그림자로 덮어 스크롤되는 항목이 비치지 않게 한다(카드 배경은 그대로).
+  /* 카드가 위에 붙은 동안(.is-stuck)에만 카드 바깥을 레일 색 그림자로 덮어 스크롤되는 항목이 비치지 않게 한다.
+     제자리에 있을 때는 덮지 않아 위의 제목을 가리지 않는다. 카드 배경은 그대로 둔다.
      위쪽 그림자는 둥근 모서리가 레일 밖에서 잘리도록 충분히 올려 둔다. */
-  .meter { position: sticky; top: 0; z-index: 1;
-    box-shadow: 0 -40px 0 4px var(--md-surface-c-low), 0 0 0 4px var(--md-surface-c-low); }
-  .shell.compact .meter { background: var(--md-surface);
-    box-shadow: 0 -40px 0 14px var(--md-surface), 0 0 0 14px var(--md-surface); }
+  .meter { position: sticky; top: 0; z-index: 1; }
+  .meter.is-stuck { box-shadow: 0 -40px 0 4px var(--md-surface-c-low), 0 0 0 4px var(--md-surface-c-low); }
+  .shell.compact .meter { background: var(--md-surface); }
+  .shell.compact .meter.is-stuck { box-shadow: 0 -40px 0 14px var(--md-surface), 0 0 0 14px var(--md-surface); }
 }
 @media (min-width: 761px) {
   .shell { transition: grid-template-columns .2s; }
@@ -1389,7 +1390,17 @@ function setCompact(on) {
   t.innerHTML = icon(on ? "menu" : "menu_open");
   try { localStorage.setItem(RAIL_KEY, on ? "1" : "0"); } catch (e) {}
 }
-$("#rail-toggle").onclick = () => setCompact(!document.querySelector(".shell").classList.contains("compact"));
+$("#rail-toggle").onclick = () => { setCompact(!document.querySelector(".shell").classList.contains("compact")); updateMeterStuck(); };
+// 진도 카드가 레일 위쪽에 붙어 있는지 표시한다(붙은 동안에만 덮개 그림자를 쓴다)
+function updateMeterStuck() {
+  const rail = $("#rail"), meter = rail.querySelector(".meter");
+  const padTop = parseFloat(getComputedStyle(rail).paddingTop) || 0;
+  const stuck = rail.scrollTop > 0 && meter.getBoundingClientRect().top - rail.getBoundingClientRect().top <= padTop + 0.5;
+  meter.classList.toggle("is-stuck", stuck);
+}
+$("#rail").addEventListener("scroll", updateMeterStuck, { passive: true });
+window.addEventListener("resize", updateMeterStuck);
+updateMeterStuck();
 try { if (localStorage.getItem(RAIL_KEY) === "1") setCompact(true); } catch (e) {}
 $("#scrim").onclick = closeRail;
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go); });
