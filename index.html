@@ -151,6 +151,12 @@ dialog.sync-dlg::backdrop { background: color-mix(in srgb, var(--md-scrim) 40%, 
 .tick.done, .tick.part { color: var(--md-primary); }
 
 /* 접힌 메뉴 = M3 navigation rail: 진도, 완료 표시, 챕터 번호, 현재 위치만 */
+@media (min-width: 761px) and (min-height: 560px) {
+  /* 데스크톱: 챕터 목록을 스크롤해도 진도 카드는 레일 위쪽에 고정 */
+  .meter { position: sticky; top: 0; z-index: 1; }
+  .meter::before { content: ""; position: absolute; inset: -12px -4px -6px; z-index: -1; background: var(--md-surface-c-low); pointer-events: none; }
+  .compact .meter::before { inset: -12px -14px -4px; background: var(--md-surface); }
+}
 @media (min-width: 761px) {
   .shell { transition: grid-template-columns .2s; }
   .shell.compact { grid-template-columns: 80px minmax(0, 1fr); }
